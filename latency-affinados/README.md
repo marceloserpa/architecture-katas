@@ -32,7 +32,7 @@ You need to proposed a decomposition of the monolith.
 1. The application already exists, is needed to plan a migration to a new architecture.
 2. Latency should be lower as possible.
 3. Cloud-Native approach
-4. Resilience
+4. Application should resilient in case of one component or AZ present failure
 
 
 ### 3. 🎯 Non-Goals
@@ -41,15 +41,16 @@ You need to proposed a decomposition of the monolith.
 1. one-shoot migration, it usually create many problems, it is hard to rollback, long downtime for customers, and data migration risks/
 2. on-premise approach
 3. mobile application, it will focus on web application
+4. multi-region disaster recovery
 
 
 ### 📐 3. Principles
 
 1. User experience is our main drive. API should respond faster as possible and UI must render with less friction.
-2. Low coupling: the architecture should be design to reduce dependencies between differences.
+2. Low coupling: the components in the architecture should design to dependencies between each other. Design for event-driven architecture.
 3. Observability: we need to monitor our APIs specially the response time, also we need to support distributed traces.
 4. Scalability: this is a game marketplace so the application should be able to scale fast.
-5. Avoid/minimize data loss
+
 
 ### 🏗️ 4. Overall Diagrams
 
