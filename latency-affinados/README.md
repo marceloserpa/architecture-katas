@@ -56,6 +56,20 @@ You need to proposed a decomposition of the monolith.
 
 wip
 
+![](diagrams/overall-architecture.png)
+
+
+KeyPoints:
+
+- Implementation of the Outbox Pattern to avoid dual-write issues
+- Debezium to extract information from the database table
+- Product-related events will be published to a Kafka topic
+    - The topic will receive multiple product events (product created, product updated, product deleted). This design aims to eliminate any ordering issues
+    - Avro for schema definition and versioning
+    - Replication Factor = 3
+    - Consumers must use manual acknowledgment (manual ack)
+- Schema + Avro with multi-event support (https://www.confluent.io/blog/multiple-event-types-in-the-same-kafka-topic/)
+
 
 ### 🧭 5. Trade-offs
 
