@@ -70,6 +70,23 @@ KeyPoints:
     - Consumers must use manual acknowledgment (manual ack)
 - Schema + Avro with multi-event support (https://www.confluent.io/blog/multiple-event-types-in-the-same-kafka-topic/)
 
+Dataloss prevention on Debezium setup
+
+- Debezium uses at-least-once: dont lose data but the publish duplicated
+- In Postgres, **replication slots** track the position of consumers from WAL the LSN. Postgres ensure to not discard a segment from WAL until received the acknolodge from all consumers.
+- This guaratee have a risk to the WAL grows until reachout out of disk
+- Replication Slots should be removed in case of removing some debezium connector
+- observability metrics needed:
+    - Total Wal Size
+    - Debezium LAG
+    - Slot Replication Status
+    - WAL retained per Replication Slot
+
+links:
+- https://www.morling.dev/blog/can-debezium-lose-events/
+- https://www.morling.dev/blog/insatiable-postgres-replication-slot/
+- https://engineering.zalando.com/posts/2023/11/patching-pgjdbc.html
+
 
 ### 🧭 5. Trade-offs
 
