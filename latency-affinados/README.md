@@ -117,42 +117,60 @@ CONS (−)
 **2. Kubernetes vs EC2**
 
 PROS (+)
-  * 
+  * Fast autoscaling: pods scale in seconds vs booting VMs, it will be helpful on spikes.
+  * Container approach: developers will be able to test the same container image locally
+  * Resilience support: liveness probe, reading probe, resource quotas, limits, taint, etc...
+  * Declarative approach: using manifest to describe the deployments
 
 CONS (−)
-  * 
+  * Operational complexity: requires Kubernetes expertise (networking, upgrades, RBAC).
+  * Harder debugging: extra abstraction layer complicates latency/networking troubleshooting.
 
 **3. Event-Driven Architecture vs Request/Response Sync**
 
 PROS (+)
-  * 
+  * Low coupling: producers and consumers evolve independently.
+  * Resilience: consumers can be down and catch up later via the broker. No cascade failures.
+  * Scalability: topics can act as a back-pressure layer avoiding overload the downstream applications.
 
 CONS (−)
-  * 
+  * Eventual consistency: reads may lag writes (e.g. search index updated after a product event).
+  * Harder debugging: async flows need distributed tracing to follow a request end-to-end.
+  * Operational overhead: running Kafka, schemas registry and dead-letter handling adds complexity.
 
 **4. Avro Schema vs Plain Text**
 
 PROS (+)
-  * 
+  * Enforced contract: schema registry validates events at publish and consume time, preventing bad data.
+  * Schema evolution: backward/forward compatibility lets producers and consumers upgrade independently. 
+  * Compact and fast: binary encoding is smaller and quicker to serialize than JSON/plain text, helping latency.
 
 CONS (−)
-  * 
+  * Tooling dependency: requires a schema registry and Avro-aware clients, adding operational pieces.
+  * Need be careful: schema act on consumers and producers but some actor can add a invalid data directly to the topic.
 
 **5. CQRS vs Single-Database for read/write OPS**
 
 PROS (+)
-  * 
+  * Read isolation: search/reads run on a dedicated store, so they don't compete with writes (target 100ms search).
+  * Independent scaling: read and write sides scale separately based on their own load.
+  * Optimized models: the read store can be denormalized/indexed for fast queries without affecting the write schema.
 
 CONS (−)
-  * 
+  * Eventual consistency: the read store lags the write store until events are projected. Delay between Debezium and the consumer.
+  * Higher complexity: two models to maintain.
 
 **6. BFF vs Frontend calling multiple services**
 
 PROS (+)
-  * 
+  * Fewer round-trips: BFF aggregates calls server-side, reducing client latency.
+  * Improve payloads: returns exactly what the page needs, cutting fields that are not need.
+  * Decoupling: frontend is shielded from downstream service changes and orchestration logic.
 
 CONS (−)
-  * 
+  * Extra component: another service to build, deploy and monitor.
+  * Potential bottleneck: BFF can become a single point of failure or latency if not scaled well.
+  * Risk of bloat: business logic may leak into the BFF instead of staying in domain services.
 
 
 
