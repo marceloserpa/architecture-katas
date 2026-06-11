@@ -90,7 +90,71 @@ links:
 
 ### 🧭 5. Trade-offs
 
-wip 
+#### Major Decisions
+
+1. The monolith should be decomposed into domain microservices (products, products-search, rating, comments, recommendation, navigation) 
+2. The application should be able to scale fast to attemp spike to usage
+3. Communication between services should be designed to avoid dataloss
+4. Contract of events should be enforced in the publisher and consumers
+5. Product search should fast (100ms) and should not affect or being affected by writes operations
+6. The UX should be fluid avoiding/reducing the delay to show the complete page
+
+#### Tradeoffs
+
+**1. Microservices vs Modular Monolith**
+
+PROS (+)
+  * Independent scalability: service can scale up or scale down based on demand decreasing costs.
+  * Fault isolation: if some component fails only a single service will be affected.
+  * 
+
+CONS (−)
+  * Operational complexity: increase the complexity due the need of more CI/CD pipeline, more components running, more places to monitor.
+  * Distributed-system failure modes: the architecture need to be prepare for new failure modes such as: partial failures, retries and eventual consistency .
+  * Higher latency in cross-service flows: Flows that need to reach out multiple services tend to be slow.
+
+
+**2. Kubernetes vs EC2**
+
+PROS (+)
+  * 
+
+CONS (−)
+  * 
+
+**3. Event-Driven Architecture vs Request/Response Sync**
+
+PROS (+)
+  * 
+
+CONS (−)
+  * 
+
+**4. Avro Schema vs Plain Text**
+
+PROS (+)
+  * 
+
+CONS (−)
+  * 
+
+**5. CQRS vs Single-Database for read/write OPS**
+
+PROS (+)
+  * 
+
+CONS (−)
+  * 
+
+**6. BFF vs Frontend calling multiple services**
+
+PROS (+)
+  * 
+
+CONS (−)
+  * 
+
+
 
 ### 🌏 6. For each key major component
 
