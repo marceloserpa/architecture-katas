@@ -101,76 +101,81 @@ links:
 
 #### Tradeoffs
 
-**1. Microservices vs Modular Monolith**
+**1. Architecture — Microservices vs Modular Monolith**
 
-PROS (+)
-  * Independent scalability: service can scale up or scale down based on demand decreasing costs.
-  * Fault isolation: if some component fails only a single service will be affected.
-  * 
+| Criterion | Microservices | Modular Monolith |
+|---|---|---|
+| Independent scalability | [good] scale each service to demand, cut cost | [bad] scale the whole app together |
+| Fault isolation | [good] failure contained to one service | [careful] fault can affect the entire application |
+| Latency (cross-domain flow) | [bad] network hops add latency | [good] local calls (e.g.: method) |
+| Operational complexity | [bad] more pipelines, components, monitoring | [good] single deploy unit |
+| Deployment time | [good] fast, dont need to deploy the entire application | [bad] very slow, not only the deploy but also the build time |
+| Failure modes | [bad] must handle retries, partial failures, eventual consistency | [good] simpler, mostly local failures |
 
-CONS (−)
-  * Operational complexity: increase the complexity due the need of more CI/CD pipeline, more components running, more places to monitor.
-  * Distributed-system failure modes: the architecture need to be prepare for new failure modes such as: partial failures, retries and eventual consistency .
-  * Higher latency in cross-service flows: Flows that need to reach out multiple services tend to be slow.
+**Decision: Microservices.** Independent scalability and fault isolation (Goals 2 and 4), but it added latency and operational cost. It will be mitigate: cross-service latency with a BFF (trade-off #6) and absorb spikes via K8s autoscaling (trade-off #2).
 
+**2. Compute platform — Kubernetes vs EC2**
 
-**2. Kubernetes vs EC2**
+| Criterion | Kubernetes (EKS) | EC2 + ASGs |
+|---|---|---|
+| Autoscaling speed| [good] pods scale in seconds on spikes | [bad] minutes to boot VMs |
+| Resilience  | [good] liveness/readiness probes, multi-AZ scheduling | [careful] self-healing must be built ourselves (metrics + ASG) |
+| Declarative ops | [good] manifests describe desired state | [careful] more imperative / scripted (shell scripts, ASG templates, etc..) |
+| Operational complexity | [bad] needs K8s expertise (many components interacting with each other) | [good] simpler mental model |
+| CI Impact | [good] building docker image takes seconds | [bad] building vm takes minutes |
 
-PROS (+)
-  * Fast autoscaling: pods scale in seconds vs booting VMs, it will be helpful on spikes.
-  * Container approach: developers will be able to test the same container image locally
-  * Resilience support: liveness probe, reading probe, resource quotas, limits, taint, etc...
-  * Declarative approach: using manifest to describe the deployments
+**Decision: Kubernetes (EKS).** It will increase the operational complexity but K8s will enable the platform to fast autoscaling and more resilient due the primitive feature (probes, autoscaling, HPA) to serve spike and AZ-failure tolerance. 
 
-CONS (−)
-  * Operational complexity: requires Kubernetes expertise (networking, upgrades, RBAC).
-  * Harder debugging: extra abstraction layer complicates latency/networking troubleshooting.
+**3. Service communication — Event-Driven vs Request/Response (Sync)**
 
-**3. Event-Driven Architecture vs Request/Response Sync**
+| Criterion  | Event-Driven (Kafka) | Request/Response (Sync) |
+|---|---|---|
+| Coupling  | [good] producers/consumers evolve independently | [bad] the client depends from server APIs |
+| Resilience | [good] components are not direcly connected; no failure cascade | [bad] downstream outage cascades to caller |
+| Scalability  | [good] topic absorbs spikes as back-pressure buffer | [careful] downstream must scale to attend with caller |
+| Consistency | [bad] eventual — reads may lag writes | [good] immediate, read-your-writes |
+| Debuggability | [careful] async flows are more complex to use distributed tracing | [good] easier to follow a request with distributed tracing|
+| Operational cost | [bad] Kafka + schema registry + DLQ to run | [good] no extra infrastructure |
 
-PROS (+)
-  * Low coupling: producers and consumers evolve independently.
-  * Resilience: consumers can be down and catch up later via the broker. No cascade failures.
-  * Scalability: topics can act as a back-pressure layer avoiding overload the downstream applications.
+**Decision: Event-Driven (Kafka).** Low coupling and resilience  are core drivers, and the broker act as a back-pressure buffer protecting downstream application when spikes happens. The architecture accept eventual consistency — mitigated by CQRS projection. Observability will be vital to understand this complex architecture and also to be awarn of costs.
 
-CONS (−)
-  * Eventual consistency: reads may lag writes (e.g. search index updated after a product event).
-  * Harder debugging: async flows need distributed tracing to follow a request end-to-end.
-  * Operational overhead: running Kafka, schemas registry and dead-letter handling adds complexity.
+**4. Event encoding — Avro Schema vs Plain Text (JSON)**
 
-**4. Avro Schema vs Plain Text**
+| Criterion  | Avro + Schema Registry | Plain Text / JSON |
+|---|---|---|
+| Contract enforcement | [good] validated at publish and consume time | [bad] no enforcement, bad data slips through |
+| Schema evolution | [good] backward/forward compat, independent upgrades | [careful] not control, easy to break consumers. It will possible to use shared libraries but it doesnt include a real safety |
+| Payload size & latency | [good] compact binary, fast to serialize | [bad] larger, slower to parse |
+| Operational cost | [bad] needs schema registry + Avro-aware clients | [good] no extra tooling |
+| Bypass risk | [careful] an actor can still publish invalid data directly to the topic | [careful] same risk, plus no schema at all |
 
-PROS (+)
-  * Enforced contract: schema registry validates events at publish and consume time, preventing bad data.
-  * Schema evolution: backward/forward compatibility lets producers and consumers upgrade independently. 
-  * Compact and fast: binary encoding is smaller and quicker to serialize than JSON/plain text, helping latency.
+**Decision: Avro + Schema Registry.** Enforced contracts and safe schema evolution prevent bad data across independently deployed services, and the compact binary encoding helps latency. The schema-registry tooling dependency is needed, any instability on it will affect the entire application, the resilence of schema-registry is a critical item.
 
-CONS (−)
-  * Tooling dependency: requires a schema registry and Avro-aware clients, adding operational pieces.
-  * Need be careful: schema act on consumers and producers but some actor can add a invalid data directly to the topic.
+**5. Read/write data model — CQRS vs Single Database**
 
-**5. CQRS vs Single-Database for read/write OPS**
+| Criterion  | CQRS (separate read store) | Single Database |
+|---|---|---|
+| Search latency  | [good] reads on dedicated store, no write contention | [bad] reads and writes compete |
+| Independent scaling | [good] read and write sides scale separately | [bad] one store scales for both |
+| Query optimization | [good] denormalized/indexed read model | [careful] schema is a compromise for both | 
+| Consistency | [bad] eventual — read store lags until projected (cdc, debezium, ingestion, indexing) | [good] immediate consistency |
+| Complexity | [bad] two models to maintain | [good] single model |
+| Right Tool for the right problem | [good] we can choose the best database based on write/read requirement | [bad] single choice |
 
-PROS (+)
-  * Read isolation: search/reads run on a dedicated store, so they don't compete with writes (target 100ms search).
-  * Independent scaling: read and write sides scale separately based on their own load.
-  * Optimized models: the read store can be denormalized/indexed for fast queries without affecting the write schema.
+**Decision: CQRS.** Isolating read from writes will allow the system to reduce the latency for the customers. The eventual consistency (Debezium → consumer projection lag) will be the price for lower latency. The cost of maintaining two models is high but we allow to achieve the application goals.
 
-CONS (−)
-  * Eventual consistency: the read store lags the write store until events are projected. Delay between Debezium and the consumer.
-  * Higher complexity: two models to maintain.
+**6. Page composition — BFF vs Frontend calling multiple services**
 
-**6. BFF vs Frontend calling multiple services**
+| Criterion  | BFF (aggregation layer) | Frontend → many services |
+|---|---|---|
+| Client latency | [good] server-side aggregation, fewer round-trips (round-trips happens but in the private network) | [bad] many client round-trips over the network |
+| Payload efficiency | [good] returns exactly what the page needs | [careful] over-fetching, unused fields |
+| Decoupling | [good] frontend shielded from downstream changes | [bad] frontend is tied to every service contract |
+| Extra component | [bad] another service to build, deploy, monitor | [good] no extra hop |
+| Failure surface | [careful] can become a bottleneck / SPOF if not scaled | [good] no shared aggregation point |
+| Boundary discipline | [careful] risk of business logic leaking into the BFF | [good] logic stays in domain services |
 
-PROS (+)
-  * Fewer round-trips: BFF aggregates calls server-side, reducing client latency.
-  * Improve payloads: returns exactly what the page needs, cutting fields that are not need.
-  * Decoupling: frontend is shielded from downstream service changes and orchestration logic.
-
-CONS (−)
-  * Extra component: another service to build, deploy and monitor.
-  * Potential bottleneck: BFF can become a single point of failure or latency if not scaled well.
-  * Risk of bloat: business logic may leak into the BFF instead of staying in domain services.
+**Decision: BFF.** Server-side aggregation reduce number of client round-trips and also reduce payload per page. The BFF introduce a high risk since it can be a SPOF/bottleneck, this is a critical service so scaling and monitoring it will be made to ensure the system is working properly. Keep business logic in domain services is critical.
 
 
 
